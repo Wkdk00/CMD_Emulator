@@ -31,7 +31,7 @@ class TerminalEmulator:
             with open(self.script_path, 'r') as f:
                 for line in f:
                     if line.strip() and not line.strip().startswith('#'):
-                        self.text_area.insert(tk.END, f"{self.prompt}{line}")
+                        self.text_area.insert(tk.END, line + "\n")
                         self.execute_command(None, line.strip())
     
     def expand_variables(self, text):
@@ -109,4 +109,5 @@ if __name__ == "__main__":
     script_path = sys.argv[2]
     
     terminal = TerminalEmulator(vfs_path, script_path)
+
     terminal.run()
