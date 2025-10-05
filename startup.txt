@@ -1,6 +1,8 @@
 # startup.txt - тестовые команды для эмулятора
+# базовые команды
+echo Greet
 conf-dump
-ls sss
-cd ddd
+cd /folder1
+ls /folder2
+wrong_command
 echo $USERNAME
-echo $USERPROFILE

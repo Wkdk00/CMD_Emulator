@@ -102,27 +102,13 @@ class TerminalEmulator:
             return "break"
         
         if cmd[0] == "exit" and len(cmd) == 1:
-            if self.vfs:
-                self.vfs.close()
             self.root.quit()
         elif cmd[0] == "echo":
             self.text_area.insert(tk.END, " ".join(cmd[1:]) + "\n")
         elif cmd[0] == "ls":
-            if len(cmd) > 1 and cmd[1].startswith("/"):
-                self.text_area.insert(tk.END, self.get_vfs_listing(cmd[1]))
-            else:
-                self.text_area.insert(tk.END, self.get_vfs_listing(self.current_vfs_path))
+            self.text_area.insert(tk.END, " ".join(cmd) + "\n")
         elif cmd[0] == "cd":
-            if len(cmd) > 1 and self.vfs:
-                new_path = cmd[1]
-                if new_path.startswith("/"):
-                    self.current_vfs_path = new_path
-                else:
-                    self.current_vfs_path = os.path.join(self.current_vfs_path, new_path).replace("\\", "/")
-                self.current_vfs_path = re.sub(r'/+/', '/', self.current_vfs_path)
-                if not self.current_vfs_path.endswith('/'):
-                    self.current_vfs_path += '/'
-            self.text_area.insert(tk.END, f"Current VFS path: {self.current_vfs_path}\n")
+            self.text_area.insert(tk.END, " ".join(cmd) + "\n")
         elif cmd[0] == "conf-dump":
             self.text_area.insert(tk.END, self.conf_dump())
         else:
