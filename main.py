@@ -1,9 +1,13 @@
 import tkinter as tk
 import os
 import re
+import sys
 
 class TerminalEmulator:
-    def __init__(self):
+    def __init__(self, vfs_path, script_path):
+        self.vfs_path = vfs_path
+        self.script_path = script_path
+        
         self.root = tk.Tk()
         username = os.getenv('USER') or os.getenv('USERNAME')
         hostname = os.uname().nodename if hasattr(os, 'uname') else os.getenv('COMPUTERNAME')
@@ -19,6 +23,16 @@ class TerminalEmulator:
         self.text_area.bind('<Key>', self.on_key_press)
         
         self.start_index = self.text_area.index("end-1c")
+        
+        self.execute_startup_script()
+    
+    def execute_startup_script(self):
+        if os.path.exists(self.script_path):
+            with open(self.script_path, 'r') as f:
+                for line in f:
+                    if line.strip() and not line.strip().startswith('#'):
+                        self.text_area.insert(tk.END, f"{self.prompt}{line}")
+                        self.execute_command(None, line.strip())
     
     def expand_variables(self, text):
         return re.sub(r'\$(\w+)', lambda m: os.getenv(m.group(1)) or m.group(0), text)
@@ -30,10 +44,27 @@ class TerminalEmulator:
                 return "break"
         return None
     
-    def execute_command(self, event):
-        last_line_index = self.text_area.index("end-1c linestart")
-        command_text = self.text_area.get(last_line_index, "end-1c")
-        command_line = command_text[len(self.prompt):].strip()
+    def conf_dump(self):
+        """Вывод параметров эмулятора в формате ключ-значение"""
+        config = {
+            "vfs_path": self.vfs_path,
+            "script_path": self.script_path,
+            "prompt": self.prompt.strip(),
+            "working_directory": os.getcwd(),
+            "user": os.getenv('USER') or os.getenv('USERNAME'),
+            "hostname": os.uname().nodename if hasattr(os, 'uname') else os.getenv('COMPUTERNAME')
+        }
+        
+        result = "Configuration dump:\n"
+        for key, value in config.items():
+            result += f"  {key}: {value}\n"
+        return result
+    
+    def execute_command(self, event, command_line=None):
+        if command_line is None:
+            last_line_index = self.text_area.index("end-1c linestart")
+            command_text = self.text_area.get(last_line_index, "end-1c")
+            command_line = command_text[len(self.prompt):].strip()
         
         expanded_line = self.expand_variables(command_line)
         cmd = expanded_line.split()
@@ -49,10 +80,14 @@ class TerminalEmulator:
         
         if cmd[0] == "exit" and len(cmd) == 1:
             self.root.quit()
+        elif cmd[0] == "echo":
+            self.text_area.insert(tk.END, " ".join(cmd[1:]) + "\n")
         elif cmd[0] == "ls":
             self.text_area.insert(tk.END, " ".join(cmd) + "\n")
         elif cmd[0] == "cd":
             self.text_area.insert(tk.END, " ".join(cmd) + "\n")
+        elif cmd[0] == "conf-dump":
+            self.text_area.insert(tk.END, self.conf_dump())
         else:
             self.text_area.insert(tk.END, "Wrong command!\n")
         
@@ -66,5 +101,12 @@ class TerminalEmulator:
         self.root.mainloop()
 
 if __name__ == "__main__":
-    terminal = TerminalEmulator()
+    if len(sys.argv) != 3:
+        print("Wrong params count")
+        sys.exit(1)
+    
+    vfs_path = sys.argv[1]
+    script_path = sys.argv[2]
+    
+    terminal = TerminalEmulator(vfs_path, script_path)
     terminal.run()

@@ -1,0 +1,6 @@
+# startup.txt - тестовые команды для эмулятора
+conf-dump
+ls sss
+cd ddd
+echo $USERNAME
+echo $USERPROFILE
