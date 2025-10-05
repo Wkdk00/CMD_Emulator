@@ -2,11 +2,17 @@ import tkinter as tk
 import os
 import re
 import sys
+import zipfile
 
 class TerminalEmulator:
     def __init__(self, vfs_path, script_path):
         self.vfs_path = vfs_path
         self.script_path = script_path
+        self.vfs = None
+        self.current_vfs_path = "/"
+        
+        if os.path.exists(vfs_path):
+            self.vfs = zipfile.ZipFile(vfs_path, 'r')
         
         self.root = tk.Tk()
         username = os.getenv('USER') or os.getenv('USERNAME')
@@ -31,7 +37,7 @@ class TerminalEmulator:
             with open(self.script_path, 'r') as f:
                 for line in f:
                     if line.strip() and not line.strip().startswith('#'):
-                        self.text_area.insert(tk.END, line + "\n")
+                        self.text_area.insert(tk.END, line)
                         self.execute_command(None, line.strip())
     
     def expand_variables(self, text):
@@ -44,15 +50,32 @@ class TerminalEmulator:
                 return "break"
         return None
     
+    def get_vfs_listing(self, path):
+        if not self.vfs:
+            return "VFS not mounted\n"
+        
+        result = []
+        for name in self.vfs.namelist():
+            if name.startswith(path.lstrip('/')) and name != path.lstrip('/'):
+                rel_path = name[len(path.lstrip('/')):].lstrip('/')
+                if '/' in rel_path:
+                    dir_name = rel_path.split('/')[0] + '/'
+                    if dir_name not in result:
+                        result.append(dir_name)
+                else:
+                    result.append(rel_path)
+        return "\n".join(result) + "\n" if result else "\n"
+    
     def conf_dump(self):
-        """Вывод параметров эмулятора в формате ключ-значение"""
         config = {
             "vfs_path": self.vfs_path,
             "script_path": self.script_path,
             "prompt": self.prompt.strip(),
             "working_directory": os.getcwd(),
             "user": os.getenv('USER') or os.getenv('USERNAME'),
-            "hostname": os.uname().nodename if hasattr(os, 'uname') else os.getenv('COMPUTERNAME')
+            "hostname": os.uname().nodename if hasattr(os, 'uname') else os.getenv('COMPUTERNAME'),
+            "vfs_mounted": bool(self.vfs),
+            "current_vfs_path": self.current_vfs_path
         }
         
         result = "Configuration dump:\n"
@@ -79,13 +102,27 @@ class TerminalEmulator:
             return "break"
         
         if cmd[0] == "exit" and len(cmd) == 1:
+            if self.vfs:
+                self.vfs.close()
             self.root.quit()
         elif cmd[0] == "echo":
             self.text_area.insert(tk.END, " ".join(cmd[1:]) + "\n")
         elif cmd[0] == "ls":
-            self.text_area.insert(tk.END, " ".join(cmd) + "\n")
+            if len(cmd) > 1 and cmd[1].startswith("/"):
+                self.text_area.insert(tk.END, self.get_vfs_listing(cmd[1]))
+            else:
+                self.text_area.insert(tk.END, self.get_vfs_listing(self.current_vfs_path))
         elif cmd[0] == "cd":
-            self.text_area.insert(tk.END, " ".join(cmd) + "\n")
+            if len(cmd) > 1 and self.vfs:
+                new_path = cmd[1]
+                if new_path.startswith("/"):
+                    self.current_vfs_path = new_path
+                else:
+                    self.current_vfs_path = os.path.join(self.current_vfs_path, new_path).replace("\\", "/")
+                self.current_vfs_path = re.sub(r'/+/', '/', self.current_vfs_path)
+                if not self.current_vfs_path.endswith('/'):
+                    self.current_vfs_path += '/'
+            self.text_area.insert(tk.END, f"Current VFS path: {self.current_vfs_path}\n")
         elif cmd[0] == "conf-dump":
             self.text_area.insert(tk.END, self.conf_dump())
         else:
@@ -98,7 +135,11 @@ class TerminalEmulator:
         return "break"
     
     def run(self):
-        self.root.mainloop()
+        try:
+            self.root.mainloop()
+        finally:
+            if self.vfs:
+                self.vfs.close()
 
 if __name__ == "__main__":
     if len(sys.argv) != 3:
@@ -109,5 +150,4 @@ if __name__ == "__main__":
     script_path = sys.argv[2]
     
     terminal = TerminalEmulator(vfs_path, script_path)
-
     terminal.run()
